@@ -9,8 +9,8 @@ data "aws_ssm_parameter" "ubuntu_2204" {
 # -----------------------------------------------
 # Bastion Host
 # -----------------------------------------------
-# Public Subnet 배치
-# 운영자 → Bastion → k3s 노드 / Monitoring Server 접근 경로
+# Public Subnet 배치 — 운영자 SSH 진입점
+# user → Bastion → k3s / Monitoring 접근 경로
 resource "aws_instance" "bastion" {
   ami                         = data.aws_ssm_parameter.ubuntu_2204.value
   instance_type               = var.bastion_type
@@ -41,15 +41,17 @@ resource "aws_instance" "bastion" {
 # -----------------------------------------------
 # k3s Standby Node
 # -----------------------------------------------
-# Public Subnet 배치 (Cloudflare Tunnel → 인바운드 포트 불필요)
-# k3s / cloudflared / node-exporter 실행
+# Private Subnet 배치 — Public IP 없음
+# Bastion 경유 SSH 접속
+# cloudflared / k3s / node-exporter 설치는 Ansible에서 수행
+# Cloudflare Tunnel 아웃바운드는 NAT Gateway 경유
 resource "aws_instance" "k3s" {
   ami                         = data.aws_ssm_parameter.ubuntu_2204.value
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
+  subnet_id                   = aws_subnet.private.id
   vpc_security_group_ids      = [aws_security_group.k3s.id]
   key_name                    = var.key_name
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   root_block_device {
     volume_size           = var.root_volume_size
@@ -68,47 +70,33 @@ resource "aws_instance" "k3s" {
     Environment = var.environment
     Role        = "standby"
   }
-  user_data = <<-EOF
-    #!/bin/bash
-    curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-    dpkg -i cloudflared.deb
-    # 💡 Cloudflare 모듈에서 생성된 토큰 주입
-    cloudflared service install ${var.aws_tunnel_token}
-  EOF
 }
 
 # -----------------------------------------------
 # Monitoring Server
 # -----------------------------------------------
-# Public Subnet 배치
-# Prometheus / Grafana / Alertmanager 실행
-# Bastion을 통해서만 접근 가능
+# Private Subnet 배치 — Public IP 없음
+# Bastion 경유 SSH 접속
+# Prometheus / Grafana / Alertmanager / Discord Bot 설치는 Ansible에서 수행
 resource "aws_instance" "monitoring" {
   ami                         = data.aws_ssm_parameter.ubuntu_2204.value
   instance_type               = var.monitoring_instance_type
-  subnet_id                   = aws_subnet.public.id
+  subnet_id                   = aws_subnet.private.id
   vpc_security_group_ids      = [aws_security_group.monitoring.id]
   key_name                    = var.key_name
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   # t3.small (2GB RAM) 환경에서 OOM 방지를 위해 Swap 구성
-user_data = <<-EOF
-    #!/bin/bash
-    # 1. Swap 구성 (기존 코드)
-    if [ ! -f /swapfile ]; then
-      fallocate -l 2G /swapfile
-      chmod 600 /swapfile
-      mkswap /swapfile
-      swapon /swapfile
-      grep -q '/swapfile none swap sw 0 0' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    fi
-
-    # 2. 💡 Cloudflare Tunnel 설치 (추가)
-    curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-    dpkg -i cloudflared.deb
-    cloudflared service install ${var.monitoring_tunnel_token}
-  EOF
-
+  user_data = <<-EOF
+              #!/bin/bash
+              if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+              fi
+              grep -q '/swapfile none swap sw 0 0' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              EOF
 
   root_block_device {
     volume_size           = var.monitoring_volume_size

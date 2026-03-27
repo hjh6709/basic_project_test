@@ -1,24 +1,38 @@
 ---
-- name: "기본 환경 구성"
-  hosts: all
+# -----------------------------------------------
+# Node Exporter — k3s / Monitoring 서버에만 설치
+# Bastion은 메트릭 수집 대상 아님
+# -----------------------------------------------
+- name: "Node Exporter 설치"
+  hosts: aws_nodes, gcp_primary
   become: yes
   roles:
     - node-exporter
 
+# -----------------------------------------------
+# GCP K3s (Primary)
+# -----------------------------------------------
 - name: "GCP 독립 K3s 구축"
-  hosts: gcp-main  # 👈 gcp_main에서 gcp-main으로 수정
+  hosts: gcp_primary
   become: yes
   roles:
     - k3s
 
+# -----------------------------------------------
+# AWS K3s (Standby)
+# -----------------------------------------------
 - name: "AWS 독립 K3s 구축"
-  hosts: aws-sub   # 👈 aws_sub에서 aws-sub으로 수정
+  hosts: aws_nodes
   become: yes
   roles:
     - k3s
 
+# -----------------------------------------------
+# Monitoring Server
+# Docker + Prometheus / Grafana / Alertmanager / Discord Bot
+# -----------------------------------------------
 - name: "모니터링 및 알림 센터 구축"
-  hosts: aws-monitor # 👈 monitoring에서 aws-monitor로 수정
+  hosts: aws-monitor
   become: yes
   roles:
     - docker
