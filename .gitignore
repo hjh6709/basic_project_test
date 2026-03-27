@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# logs
+*.log
+
+# environment
+.env
+
+# secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# kubernetes
+*.kubeconfig
+
+# temp
+tmp/
+temp/
+
+# 로컬 상태 파일
+*.tfstate
+*.tfstate.*
+
+# 변수 파일 (비밀값 포함)
+*.tfvars
+*.tfvars.json
+
+# 인증 키 파일
+*.json
+*.pem
+my_gcp_key
+my_gcp_key.pub
+
+# 테라폼 설정 폴더
+.terraform/
