@@ -21,11 +21,11 @@ provider "cloudflare" {
   api_token = var.cf_api_token
 }
 
-# provider "google" {
-#   project     = var.gcp_project_id
-#   region      = var.gcp_region
-#   credentials = file(var.gcp_credentials)
-# }
+provider "google" {
+  project     = var.gcp_project_id
+  region      = var.gcp_region
+  credentials = file(var.gcp_credentials)
+}
 
 # -------------------------------------------------------------------
 # 2. Cloudflare 모듈 (통합 관제 및 터널 예약)
@@ -54,10 +54,9 @@ module "aws" {
   environment        = var.environment
   
   # 네트워크 설정 (기존 network 모듈의 역할을 내재화)
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidr  = var.public_subnet_cidr
-  private_subnet_cidr = var.private_subnet_cidr
-  availability_zone   = var.availability_zone
+  vpc_cidr           = var.vpc_cidr
+  public_subnet_cidr = var.public_subnet_cidr
+  availability_zone  = var.availability_zone
   
   # Cloudflare 터널 토큰 주입
   aws_tunnel_token        = module.cloudflare.aws_tunnel_token
@@ -78,18 +77,23 @@ module "aws" {
 }
 
 # -------------------------------------------------------------------
-# 4. GCP 모듈 (Primary 인프라) — 테스트 시 주석 처리
+# 4. GCP 모듈 (Primary 인프라)
+# Cloudflare 터널 토큰을 주입받아 메인 서비스를 구동합니다.
 # -------------------------------------------------------------------
-# module "gcp" {
-#   source       = "./modules/gcp"
-#   project_name = var.project_name
-#   environment  = var.environment
-#   gcp_project_id   = var.gcp_project_id
-#   gcp_region       = var.gcp_region
-#   gcp_zone         = var.gcp_zone
-#   tunnel_token = module.cloudflare.gcp_tunnel_token
-#   gcp_db_password  = var.gcp_db_password
-#   gcp_ssh_public_key = var.gcp_ssh_public_key
-#   gcp_credentials  = var.gcp_credentials
-# }
+module "gcp" { # gcp 클라우드 코드 추가 안하면서 오류 코드 남아 있음
+  source       = "./modules/gcp"
+  project_name = var.project_name
+  environment  = var.environment
+  gcp_project_id   = var.gcp_project_id
+  gcp_region       = var.gcp_region
+  gcp_zone         = var.gcp_zone
+  
+  # Cloudflare 터널 토큰 주입
+  tunnel_token = module.cloudflare.gcp_tunnel_token
+  
+  # 보안 주입 변수
+  gcp_db_password  = var.gcp_db_password
+  gcp_ssh_public_key = var.gcp_ssh_public_key
+  gcp_credentials  = var.gcp_credentials
+}
 

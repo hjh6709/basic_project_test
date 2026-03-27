@@ -23,7 +23,6 @@ variable "environment" {
 variable "gcp_project_id" {
   description = "GCP 프로젝트 ID"
   type        = string
-  default     = ""
 }
 
 variable "gcp_region" {
@@ -42,20 +41,17 @@ variable "gcp_db_password" {
   description = "Cloud SQL Root 비밀번호"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "gcp_credentials" {
   description = "GCP 인증 JSON (GitHub Actions에서 주입)"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "gcp_ssh_public_key" {
   description = "Ansible 접속을 허용할 SSH 공개키(자물쇠)"
   type        = string
-  default     = ""
 }
 
 # -----------------------------------------------
@@ -168,10 +164,4 @@ variable "app_domain" {
 
 variable "monitoring_domain" {
   default = "status.bucheongoyangijanggun.com"
-}
-# Private Subnet CIDR (k3s / Monitoring 배치용)
-variable "private_subnet_cidr" {
-  description = "AWS Private subnet CIDR block"
-  type        = string
-  default     = "10.20.2.0/24"
 }

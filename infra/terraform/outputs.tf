@@ -1,16 +1,16 @@
 # -----------------------------------------------
-# GCP Primary outputs — 테스트 시 주석 처리
+# GCP Primary outputs
 # -----------------------------------------------
-# output "gcp_k3s_ephemeral_ip" {
-#   description = "GCP K3s 임시 공인 IP (Ansible 초기 접속용)"
-#   value       = module.gcp.k3s_ephemeral_ip
-# }
+output "gcp_k3s_ephemeral_ip" {
+  description = "GCP K3s 임시 공인 IP (Ansible 초기 접속용)"
+  value       = module.gcp.k3s_ephemeral_ip
+}
 
-# output "gcp_db_proxy_sa_key" {
-#   description = "AWS DB 연동을 위한 Cloud SQL Proxy JSON 키"
-#   value       = module.gcp.db_proxy_sa_key
-#   sensitive   = true
-# }
+output "gcp_db_proxy_sa_key" {
+  description = "AWS DB 연동을 위한 Cloud SQL Proxy JSON 키"
+  value       = module.gcp.db_proxy_sa_key
+  sensitive   = true
+}
 
 # -----------------------------------------------
 # AWS Network outputs
@@ -25,17 +25,13 @@ output "aws_public_subnet_id" {
   value       = module.aws.public_subnet_id
 }
 
-output "aws_private_subnet_id" {
-  description = "AWS Private Subnet ID"
-  value       = module.aws.private_subnet_id
-}
-
 # -----------------------------------------------
 # AWS k3s node outputs
 # -----------------------------------------------
-output "aws_k3s_private_ip" {
-  description = "AWS k3s Node Private IP (Bastion 경유 접속)"
-  value       = module.aws.k3s_private_ip
+# Prometheus Node Exporter scrape 대상
+output "aws_k3s_public_ip" {
+  description = "AWS k3s Node Public IP"
+  value       = module.aws.k3s_public_ip
 }
 
 output "aws_standby_security_group_id" {
@@ -59,26 +55,12 @@ output "aws_bastion_public_ip" {
 # -----------------------------------------------
 # AWS Monitoring Server outputs
 # -----------------------------------------------
-output "aws_monitoring_private_ip" {
-  description = "AWS Monitoring Server Private IP"
-  value       = module.aws.monitoring_private_ip
+output "aws_monitoring_public_ip" {
+  description = "AWS Monitoring Server Public IP"
+  value       = module.aws.monitoring_public_ip
 }
 
 output "aws_monitoring_instance_id" {
   description = "AWS Monitoring Server EC2 Instance ID"
   value       = module.aws.monitoring_instance_id
-}
-
-# -----------------------------------------------
-# Cloudflare outputs
-# -----------------------------------------------
-output "cf_access_client_id" {
-  description = "Cloudflare Access Client ID (Prometheus scrape 인증용)"
-  value       = module.cloudflare.cf_access_client_id
-}
-
-output "cf_access_client_secret" {
-  description = "Cloudflare Access Client Secret"
-  value       = module.cloudflare.cf_access_client_secret
-  sensitive   = true
 }

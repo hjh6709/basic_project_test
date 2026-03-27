@@ -1,47 +1,17 @@
 ---
-# -----------------------------------------------
-# K3s 설치
-# -----------------------------------------------
 - name: K3s 설치 여부 확인 (중복 설치 방지)
   command: which k3s
   register: k3s_installed
   ignore_errors: true
   changed_when: false
 
-- name: K3s 설치 스크립트 다운로드 및 실행
+- name: K3s  설치 스크립트 다운로드 및 실행
   shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --cluster-init" sh -
-  when: k3s_installed.rc != 0
+  when: k3s_installed.rc != 0 # k3s가 없을 때만 실행
 
 - name: K3s 서비스가 정상적으로 실행 중인지 확인
   systemd:
     name: k3s
     state: started
     enabled: yes
-
-# -----------------------------------------------
-# cloudflared 설치 및 Tunnel 연결
-# tunnel_token이 있을 때만 실행
-# -----------------------------------------------
-- name: cloudflared 설치 여부 확인
-  command: which cloudflared
-  register: cloudflared_installed
-  ignore_errors: true
-  changed_when: false
-
-- name: cloudflared 다운로드 및 설치
-  shell: |
-    curl -L --output /tmp/cloudflared.deb \
-      https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-    dpkg -i /tmp/cloudflared.deb
-  when:
-    - cloudflared_installed.rc != 0
-    - tunnel_token is defined
-    - tunnel_token | trim != ""
-
-- name: cloudflared Tunnel 서비스 등록
-  shell: cloudflared service install {{ tunnel_token }}
-  when:
-    - tunnel_token is defined
-    - tunnel_token | trim != ""
-  ignore_errors: true

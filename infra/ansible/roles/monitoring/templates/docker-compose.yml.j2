@@ -7,6 +7,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - ./alert.rules.yml:/etc/prometheus/alert.rules.yml
+      # 💡 변수에 따라 실제 경로(/var/lib) 또는 로컬 경로(./data) 선택
       - {{ storage_setup_enabled | ternary('/var/lib/prometheus', './data/prometheus') }}:/prometheus
     ports:
       - "9090:9090"
@@ -36,19 +37,21 @@ services:
       - "9093:9093"
     restart: always
 
-  # -----------------------------------------------
-  # AIOps Discord Bot
-  # Alertmanager Webhook 수신 → Gemini API 분석 → Discord 전송
-  # -----------------------------------------------
   alert-bot:
     build:
-      context: /home/ubuntu/discord-bot
-      dockerfile: Dockerfile
-    container_name: alert-bot
+      context: ../../aiops  # 앤서블이 빌드할 위치 또는 이미지를 미리 만들어뒀다면 image 사용
+    image: chilseongpa-bot:latest
+    container_name: chilseongpa-bot
+    restart: always
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_BOT_TOKEN={{ discord_bot_token }}
+      - GEMINI_API_KEY={{ gemini_api_key }}
+      - DISCORD_CHANNEL_ID={{ discord_channel_id }}
     ports:
       - "5000:5000"
-    restart: always
+    networks:
+      - monitoring-network
+
+networks:
+  monitoring-network:
+    driver: bridge
