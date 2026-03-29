@@ -40,8 +40,8 @@ module "cloudflare" {
   environment           = var.environment
 
   # 서비스 도메인 설정
-  app_domain            = "app.bucheongoyangijanggun.com"
-  monitoring_domain     = "monitor.bucheongoyangijanggun.com"
+  app_domain            = var.app_domain
+  monitoring_domain     = var.monitoring_domain
 }
 
 # -------------------------------------------------------------------
