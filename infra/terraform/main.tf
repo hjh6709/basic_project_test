@@ -35,13 +35,13 @@ module "cloudflare" {
   source                = "./modules/cloudflare"
   cf_account_id         = var.cf_account_id
   cf_zone_id            = var.cf_zone_id
-  cf_tunnel_secret      = var.cf_tunnel_secret
   project_name          = var.project_name
   environment           = var.environment
 
   # 서비스 도메인 설정
   app_domain            = var.app_domain
-  monitoring_domain     = var.monitoring_domain
+  grafana_domain        = var.grafana_domain
+  prometheus_domain     = var.prometheus_domain
 }
 
 # -------------------------------------------------------------------

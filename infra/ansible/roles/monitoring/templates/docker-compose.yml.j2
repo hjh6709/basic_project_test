@@ -4,6 +4,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    extra_hosts:
+      - "gcp-metrics.app.bucheongoyangijanggun.com:{{ gcp_ip }}"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - ./alert.rules.yml:/etc/prometheus/alert.rules.yml
@@ -39,6 +41,19 @@ services:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
     ports:
       - "9093:9093"
+    restart: always
+
+  stackdriver-exporter:
+    image: prometheuscommunity/stackdriver-exporter:latest
+    container_name: stackdriver-exporter
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp/gcp-sa-key.json
+      - STACKDRIVER_EXPORTER_GOOGLE_PROJECT_ID={{ gcp_project_id }}
+      - STACKDRIVER_EXPORTER_MONITORING_METRICS_TYPE_PREFIXES=cloudsql.googleapis.com
+    volumes:
+      - /home/ubuntu/gcp-sa-key.json:/etc/gcp/gcp-sa-key.json:ro
+    ports:
+      - "9255:9255"
     restart: always
 
  

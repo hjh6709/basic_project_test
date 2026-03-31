@@ -4,172 +4,128 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **personal repository** (`hjh6709/basic_project_test`) for solo reproduction and end-to-end testing of the full Chilseongpa platform — the same infrastructure and application stack as the team project, maintained by one person.
-
-**Chilseongpa** is a hybrid multi-cloud AIOps platform for operating Kubernetes services across GCP (primary/active) and AWS (standby). Key capabilities: Cloudflare-based automatic DNS failover, Prometheus/Grafana observability stack, and LLM-powered incident analysis via a Discord bot + Gemini API.
+**Chilseongpa** is a Hybrid Multi-Cloud AIOps Platform built for KT Cloud Infrastructure. It runs a GCP (Active) / AWS (Standby) Kubernetes environment with Prometheus observability and Gemini LLM-based incident analysis via a Discord bot.
 
 ## Architecture
 
 ```
-Traffic → Cloudflare Edge (Load Balancer + Health Check)
-           ├─→ GCP K3s Cluster (Active) ─→ Cloud SQL (MySQL 8.0)
-           └─→ AWS K3s Cluster (Standby)
-
-Monitoring (AWS private subnet):
-  Prometheus → Grafana → Alertmanager → Discord Bot → Gemini API
+Client → Cloudflare Edge (DNS, LB, Health Check, Zero Trust Tunnels)
+       → GCP Primary (K3s) [Active]
+       → AWS Standby (K3s) [Failover]
+       → GCP Cloud SQL (Shared DB)
+       → AWS Monitoring (Prometheus + Grafana + Alertmanager + Discord Bot)
 ```
 
-**Infrastructure provisioning flow:**
+**Failover:** Cloudflare health-checks the GCP primary; on failure it routes to the AWS standby automatically.
 
-1. `terraform apply` creates all cloud resources and auto-generates `infra/ansible/inventory.ini`
-2. `ansible-playbook playbook.yml` configures servers (Node Exporter → K3s → Docker → Monitoring stack)
-3. GitHub Actions CI/CD deploys the application to both clusters
+**Metrics path:** App `/metrics` → Prometheus (scrapes via Cloudflare tunnel for cross-cloud) → Alertmanager → Discord webhook → `discord-bot` → Gemini API → Discord channel
 
-**Network:** AWS VPC `10.20.0.0/16` — K3s Standby and Monitoring servers are in the private subnet (`10.20.2.0/24`); access requires Bastion ProxyCommand (auto-configured by `ssh_config_setup.sh`).
+**Network (AWS):** VPC `10.20.0.0/16`, Bastion in public subnet `10.20.1.0/24`, K3s + Monitoring in private `10.20.2.0/24`. Access private nodes via Bastion ProxyCommand.
 
-**Cloudflare Tunnels:** Three tunnels (GCP, AWS, Monitoring) provide secure egress from private networks. Prometheus scraping uses Cloudflare Access service tokens (Zero Trust).
+## Directory Structure
 
-## Implementation Details
+| Path | Purpose |
+|------|---------|
+| `infra/terraform/` | Cloud provisioning (AWS VPC/EC2, GCP VM/CloudSQL, Cloudflare tunnels/LB) |
+| `infra/terraform/modules/` | Reusable modules: `aws/`, `gcp/`, `cloudflare/` |
+| `infra/ansible/` | Server configuration automation |
+| `infra/ansible/roles/` | `k3s`, `docker`, `node-exporter`, `monitoring` |
+| `infra/ansible/roles/monitoring/templates/` | Jinja2 templates for Prometheus, Grafana, Alertmanager, docker-compose |
+| `application/backend/` | Backend API service (containerized, exposes `/metrics`) |
+| `application/k8s/` | Kubernetes manifests (deployment, service, ingress, configmap, namespace) |
+| `application/k6/` | K6 load testing scripts and Docker setup |
+| `aiops/discord-bot/` | Python Discord bot that calls Gemini API for alert analysis |
+| `platform/cicd/github-actions/` | CI/CD workflow placeholders |
 
-**`cloudflared` is installed automatically via EC2/GCP `user_data`** — Ansible does not install it. The Cloudflare module creates tunnel tokens first, which are then embedded into instance `user_data` scripts at `terraform apply` time. When instances boot, they self-register with Cloudflare. Never attempt to install or restart `cloudflared` via Ansible.
+## Key Commands
 
-**Cloudflare module must apply before AWS/GCP modules** — `main.tf` passes tunnel tokens from the `cloudflare` module output into the `aws` and `gcp` modules. If you `terraform apply -target` individual modules, always target `module.cloudflare` first.
-
-## Common Commands
-
-### Infrastructure (Terraform)
+### Terraform (Infrastructure Provisioning)
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars  # Fill in secrets before first run
+cp terraform.tfvars.example terraform.tfvars  # Fill in secrets
 terraform init
 terraform plan
 terraform apply
-bash ssh_config_setup.sh  # Configure SSH ProxyCommand for private subnet access
+bash ssh_config_setup.sh  # Generate ~/.ssh/config with Bastion ProxyCommand
 ```
 
-**Important — module execution order:** The `cloudflare` module runs first (creates tunnels and generates tokens), then passes those tokens into `aws` and `gcp` modules via `user_data`. This dependency is implicit in `main.tf`; do not run modules independently.
-
-**Check Terraform outputs before running Ansible:**
-
-```bash
-# Retrieve Cloudflare Access tokens needed for secrets.sh
-terraform output cf_access_client_id
-terraform output -raw cf_access_client_secret
-
-# Verify IP addresses used by ssh_config_setup.sh
-terraform output aws_bastion_public_ip
-terraform output aws_k3s_private_ip
-terraform output aws_monitoring_private_ip
-```
-
-**Destroy all resources:**
-
-```bash
-terraform destroy
-```
-
-### Server Configuration (Ansible)
+### Ansible (Server Configuration)
 
 ```bash
 cd infra/ansible
-source secrets.sh           # Sets ALERT_WEBHOOK_URL, CF_CLIENT_ID, CF_CLIENT_SECRET
-ansible all -m ping         # Verify connectivity
-ansible-playbook playbook.yml -e "storage_setup_enabled=false"
+source secrets.sh              # Load env vars (Vault passwords, tokens)
+ansible all -m ping            # Verify connectivity
 
-# Run only on a specific host group (--limit flag)
-ansible-playbook playbook.yml --limit gcp-main
-ansible-playbook playbook.yml --limit aws-sub
+# Full provisioning
+ansible-playbook playbook.yml
+
+# Selective execution
+ansible-playbook playbook.yml --limit gcp_primary
+ansible-playbook playbook.yml --limit aws_nodes
 ansible-playbook playbook.yml --limit aws-monitor
+ansible-playbook playbook.yml -e "storage_setup_enabled=false"
 ```
 
-**SSH shortcuts** (available after `bash ssh_config_setup.sh`):
+### Kubernetes (Application Deployment)
 
 ```bash
-ssh bastion      # AWS Bastion Host (public subnet)
-ssh k3s          # AWS K3s Standby node (via Bastion ProxyJump)
-ssh monitoring   # AWS Monitoring server (via Bastion ProxyJump)
+cd application/k8s
+kubectl apply -f namespace.yaml
+kubectl apply -f .
 ```
 
-### Application
+### K6 Load Testing
 
 ```bash
-# Build backend container
-cd application/backend
-docker build -t chilseongpa-app .
-
-# Deploy to Kubernetes
-kubectl apply -f application/k8s/
-
-# Load testing — inline env vars (quick run)
 cd application/k6
-TARGET_BASE_URL="https://your-domain.com" TARGET_API_PATH="/api/test" \
-  HTTP_METHOD="POST" VUS="100" DURATION="2m" ./run_k6_test.sh
 
-# Load testing — Docker (recommended, uses .env.testk6)
+# Docker-based run (recommended)
 docker build -t chilseongpa-k6 .
-docker run --rm --ulimit nofile=65535:65535 --env-file .env.testk6 \
-  -v "${PWD}:/work" -w /work chilseongpa-k6 \
-  run scenarios/single_api_load.js --dns ttl=0 \
-  --summary-export "results/summary_$(date +%Y%m%d_%H%M%S).json"
+docker run --rm --ulimit nofile=65535:65535 \
+  --env-file .env.testk6 \
+  -v "${PWD}:/work" -w /work \
+  chilseongpa-k6 run scenarios/single_api_load.js \
+  --dns ttl=0 \
+  --summary-export "results/summary_$(date +%s).json"
+
+# Script-based run with inline env vars
+TARGET_BASE_URL="https://your-domain.com" TARGET_API_PATH="/api/test" \
+HTTP_METHOD="POST" VUS="100" DURATION="2m" ./run_k6_test.sh
 ```
 
-> Set `WANT_503=true` in `.env.testk6` to treat 503 responses as expected (used when intentionally triggering Failover). Results are saved to `application/k6/results/`.
-
-### AIOps Discord Bot
+### Discord Bot (AIOps)
 
 ```bash
 cd aiops/discord-bot
-docker build -t chilseongpa-discord-bot .
-# Requires: DISCORD_TOKEN, GEMINI_API_KEY env vars
+pip install -r requirements.txt
+python bot.py
+# Or via Docker (deployed by Ansible on monitoring server)
 ```
 
-## Key Files
+## Secrets & Sensitive Files
 
-| File                                        | Purpose                                                                         |
-| ------------------------------------------- | ------------------------------------------------------------------------------- |
-| `infra/terraform/terraform.tfvars.example`  | Template for all required secrets — must copy and fill before `terraform apply` |
-| `infra/terraform/ansible_inventory.tf`      | Auto-generates Ansible inventory with Bastion ProxyCommand                      |
-| `infra/ansible/secrets.sh`                  | Sets env vars consumed by Ansible (Discord webhook, Cloudflare Access tokens)   |
-| `infra/ansible/group_vars/all.yml`          | Shared variables across all Ansible roles                                       |
-| `infra/ansible/roles/monitoring/templates/` | Jinja2 templates for Prometheus, Grafana, Alertmanager configs                  |
-| `infra/terraform/modules/cloudflare/`       | Tunnel creation, Load Balancer failover rules                                   |
-| `application/k6/.env.testk6`                | Load test parameters (VUs, duration, target URL)                                |
+These are in `.gitignore` and must be created locally:
+- `infra/terraform/terraform.tfvars` — cloud credentials and API tokens
+- `infra/ansible/inventory.ini` — auto-generated by Terraform, not committed
+- `infra/ansible/secrets.sh` — Ansible Vault passwords and environment variables
+- `infra/ansible/group_vars/all.yml` — contains Discord webhook URL, Gemini API key references
 
-## Secrets & Environment Variables
+Cloudflare Zero Trust service tokens are used by Prometheus to scrape GCP metrics cross-cloud. These are provisioned in `infra/terraform/modules/cloudflare/`.
 
-**terraform.tfvars** (never commit):
+## Deployment Order
 
-- `cf_api_token`, `cf_account_id`, `cf_zone_id`, `cf_tunnel_secret` — Cloudflare credentials (`cf_zone_id` is the Zone ID from the Cloudflare dashboard, distinct from `cf_account_id`)
-  - Generate tunnel secret: `openssl rand -base64 32`
-- `app_domain`, `monitoring_domain` — Cloudflare-proxied domains for the app and Grafana/Prometheus UI
-- `gcp_credentials` — GCP Service Account JSON content. Leave empty for local runs. For GitHub Actions, register as a repository secret in **Settings → Secrets and variables → Actions** of this personal repo (`hjh6709/basic_project_test`)
-- `gcp_ssh_public_key` — Full SSH public key string (e.g. `ssh-ed25519 AAAA... ubuntu`) used by Ansible to access GCP nodes
-- `key_name` — AWS EC2 Key Pair name (must be pre-created in the AWS console)
-- `allowed_ssh_cidr` — Change from `0.0.0.0/0` to your IP (`x.x.x.x/32`) for production
+1. `terraform apply` — provisions all cloud resources and generates `inventory.ini`
+2. `ssh_config_setup.sh` — configures SSH for Bastion-proxied access
+3. `ansible-playbook playbook.yml` — configures K3s, Docker, monitoring stack
+4. `kubectl apply -f application/k8s/` — deploys the application
+5. K6 load test to validate end-to-end traffic
+6. Verify alerts flow: Prometheus → Alertmanager → Discord → Gemini analysis
 
-**ansible/secrets.sh**:
+## Monitoring Stack (Ansible-Managed on AWS Monitoring Server)
 
-- `ALERT_WEBHOOK_URL` — Discord webhook URL
-- `CF_CLIENT_ID` / `CF_CLIENT_SECRET` — Cloudflare Access tokens (read from Terraform outputs after `terraform apply`)
-
-**GitHub Actions repository secrets** (Settings → Secrets and variables → Actions in `hjh6709/basic_project_test`):
-
-| Secret | Used by | Description |
-|--------|---------|-------------|
-| `DISCORD_WEBHOOK` | `pr-discord.yml` | Discord webhook URL for PR open/merge notifications |
-| `GCP_CREDENTIALS` | `deploy.yml` (planned) | GCP Service Account JSON for kubectl access |
-
-> `build.yml` and `deploy.yml` are currently placeholder files — populate with actual workflow steps as CI/CD is implemented.
-
-## Cloud SQL (GCP)
-
-| Item | Value |
-|------|-------|
-| Instance name | `hybrid-primary-db` |
-| Database name | `hybrid_app_db` |
-| User | `root` |
-| Password | `gcp_db_password` from `terraform.tfvars` |
-| Access method | Cloud SQL Auth Proxy (IAM auth, public IP with no authorized networks needed) |
-
-Both GCP and AWS K3s clusters connect to this single Cloud SQL instance. `deletion_protection` is disabled for the dev environment.
+All services run via Docker Compose (template: `roles/monitoring/templates/docker-compose.yml.j2`):
+- **Prometheus** — scrapes app metrics and Node Exporter from both clouds
+- **Grafana** — dashboards provisioned via `datasource.yml.j2` / `dashboard.yml.j2`
+- **Alertmanager** — routes alerts based on `alertmanager.yml.j2`; fires to Discord webhook
+- **Discord Bot** — receives Alertmanager webhooks, queries Gemini API, posts analysis to Discord

@@ -13,20 +13,19 @@ variable "cf_zone_id" {
   type        = string
 }
 
-# 터널 보안 정보
-variable "cf_tunnel_secret" {
-  description = "터널 암호화를 위한 32바이트 이상의 비밀 키"
-  type        = string
-  sensitive   = true
-}
-
 # 서비스 도메인 정보
 variable "app_domain" {
   description = "GCP(Main)와 AWS(Standby)가 연결될 메인 서비스 도메인"
   type        = string
 }
 
-variable "monitoring_domain" {
-  description = "모니터링 서버(Grafana 등)에 접근할 도메인"
+variable "grafana_domain" {
+  description = "Grafana에 접근할 도메인"
   type        = string
+}
+
+variable "prometheus_domain" {
+  description = "Prometheus에 접근할 도메인"
+  type        = string
+  
 }

@@ -157,17 +157,14 @@ variable "cf_zone_id" {
   type        = string
 }
 
-variable "cf_tunnel_secret" {
-  description = "터널 생성 시 사용할 공통 Secret"
-  type        = string
-  sensitive   = true
-}
-
 # 기존의 https:// 와 끝의 / 를 모두 제거합니다.
 variable "app_domain" {
   default = "app.bucheongoyangijanggun.com"
 }
 
-variable "monitoring_domain" {
-  default = "status.bucheongoyangijanggun.com"
+variable "grafana_domain" {
+  default = "grafana.bucheongoyangijanggun.com"
+}
+variable "prometheus_domain" {
+  default = "prometheus.bucheongoyangijanggun.com"
 }

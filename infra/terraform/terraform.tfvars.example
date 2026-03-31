@@ -47,10 +47,6 @@ cf_api_token     = "your-cloudflare-api-token"
 cf_account_id    = "your-cloudflare-account-id"
 cf_zone_id       = "your-cloudflare-zone-id"
 
-# 32바이트 이상의 임의 문자열 (터널 암호화용)
-# 예: openssl rand -base64 32 로 생성
-cf_tunnel_secret = "your-32-bytes-or-more-secret-string"
-
 # --- Service Domains ---
 app_domain        = "app.bucheongoyangijanggun.com"
 monitoring_domain = "status.bucheongoyangijanggun.com"
