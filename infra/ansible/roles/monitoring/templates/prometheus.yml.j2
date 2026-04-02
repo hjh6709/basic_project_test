@@ -3,7 +3,7 @@ global:
   scrape_timeout: 10s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'aws-prometheus'
+    monitor: 'gcp-prometheus'
     environment: 'prod'
 
 rule_files:
@@ -51,14 +51,12 @@ scrape_configs:
         target_label: __name__
         replacement: 'cloudsql_disk_used_bytes'
 
-  # 💡 GCP App /metrics + Node Exporter
+  # 💡 GCP K3s Node Exporter — 같은 VPC, 직접 접근
   - job_name: 'gcp-metrics'
     scheme: http
     metrics_path: '/metrics'
-    tls_config:
-      insecure_skip_verify: true
     static_configs:
-      - targets: ['172.17.0.1:9101']
+      - targets: ['{{ gcp_internal_ip }}:9100']
         labels:
           cluster: 'gcp'
           environment: 'prod'
@@ -85,16 +83,13 @@ scrape_configs:
         target_label: __name__
         replacement: 'backend_http_request_duration_seconds_total'
 
-  # 💡 AWS App /metrics + Node Exporter
-  # Same VPC Direct Scrape
-  # App /metrics 포트: 8000
-  # Node Exporter 포트: 9100
+  # 💡 AWS App /metrics — Cloudflare Tunnel 경유 (크로스 클라우드)
   - job_name: 'aws-app-metrics'
-    scheme: http
+    scheme: https
     metrics_path: '/metrics'
     static_configs:
       - targets:
-          - "{{ aws_ip }}:8000"
+          - "aws-app-metrics.hjh-dev.site"
         labels:
           cluster: 'aws'
           service: 'backend'
@@ -120,12 +115,13 @@ scrape_configs:
         target_label: __name__
         replacement: 'backend_http_request_duration_seconds_total'
 
+  # 💡 AWS Node Exporter — Cloudflare Tunnel 경유 (크로스 클라우드)
   - job_name: 'aws-node-exporter'
-    scheme: http
+    scheme: https
     metrics_path: '/metrics'
     static_configs:
       - targets:
-          - "{{ aws_ip }}:9100"
+          - "aws-node-metrics.hjh-dev.site"
         labels:
           cluster: 'aws'
           environment: 'prod'

@@ -122,19 +122,11 @@ variable "key_name" {
   type        = string
 }
 
-# Monitoring Server 인스턴스 타입
-variable "monitoring_instance_type" {
-  description = "Monitoring Server EC2 instance type"
+# GCP 서브넷 CIDR
+variable "gcp_subnet_cidr" {
+  description = "GCP 서브넷 CIDR (AWS 10.20.0.0/16과 충돌 없는 대역)"
   type        = string
-  default     = "t3.small"
-}
-
-# Monitoring Server EBS Volume 크기
-# Prometheus TSDB 저장 공간 확보 목적
-variable "monitoring_volume_size" {
-  description = "Monitoring Server EBS volume size (GB)"
-  type        = number
-  default     = 30
+  default     = "10.30.0.0/24"
 }
 
 

@@ -24,13 +24,19 @@ variable "gcp_project_id" {
 variable "gcp_region" {
   description = "인프라가 배포될 리전 (AWS와 통신 지연을 막기 위해 서울로 고정)"
   type        = string
-  default     = "asia-northeast3" # 아키텍트의 결정: 서울 리전
+  default     = "asia-northeast3"
 }
 
 variable "gcp_zone" {
   description = "인프라가 배포될 가용 영역"
   type        = string
   default     = "asia-northeast3-a"
+}
+
+variable "gcp_subnet_cidr" {
+  description = "GCP 서브넷 CIDR (AWS 10.20.0.0/16과 충돌 없는 대역)"
+  type        = string
+  default     = "10.30.0.0/24"
 }
 variable "gcp_credentials" {
   description = "GCP 인증 JSON (GitHub Actions에서 주입)"
@@ -52,7 +58,13 @@ variable "gcp_ssh_public_key" {
 
 # --- Cloudflare 연결 변수 ---
 variable "tunnel_token" {
-  description = "Cloudflare Tunnel Token for GCP Instance"
+  description = "Cloudflare Tunnel Token for GCP K3s Instance"
+  type        = string
+  sensitive   = true
+}
+
+variable "monitoring_tunnel_token" {
+  description = "Cloudflare Tunnel Token for GCP Monitoring Instance"
   type        = string
   sensitive   = true
 }
